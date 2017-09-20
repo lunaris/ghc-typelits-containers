@@ -7,9 +7,11 @@
 module GHC.TypeLits.Map
   ( Map
   , FromList
+  , Lookup
   ) where
 
-data Map k v
+data Map key value
 
-type family FromList (as :: [(k, v)]) :: Map k v where
-  FromList as = FromList as
+type family FromList (as :: [(key, value)]) :: Map key value
+
+type family Lookup (k :: key) (m :: Map key value) :: Maybe value
