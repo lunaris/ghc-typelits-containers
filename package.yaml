@@ -1,0 +1,30 @@
+name: ghc-typelits-containers
+version: '0.1.0.0'
+synopsis: Type-level containers
+description: Type-level containers
+
+ghc-options:
+  - -Wall
+  - -Werror
+
+dependencies:
+  - base
+  - containers
+  - ghc
+  - mtl
+  - ghc-tcplugins-extra
+  - template-haskell
+  - text
+  - transformers
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - GHC.TypeLits.Map
+    - GHC.TypeLits.Map.Solver
+
+executables:
+  example:
+    main: example/Main.hs
+    dependencies:
+      - ghc-typelits-containers
