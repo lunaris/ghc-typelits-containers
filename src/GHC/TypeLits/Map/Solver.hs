@@ -16,7 +16,7 @@ import Data.Maybe
 import FastString
 import GHC.TcPluginM.Extra
 import GhcPlugins           hiding (substTy)
---import TcEvidence
+import TcEvidence
 import TcPluginM            hiding (newWanted)
 import TcRnTypes
 import TcType
@@ -77,9 +77,9 @@ pluginSolve env gs ds ws = do
   pluginWs <- catMaybes <$> traverse (toMapTypes env subst) ws
   let _xs = map (second (reduce *** reduce)) pluginWs
   tcPluginTrace "MAPTRACE REDUCE: " $ ppr _xs
-  _ys <- catMaybes <$> traverse (reifyCt env) _xs
+  (_ys, _zs) <- unzip . catMaybes <$> traverse (reifyCt env) _xs
   tcPluginTrace "MAPTRACE REIFY: " $ ppr _ys
-  pure (TcPluginOk [] _ys)
+  pure (TcPluginOk _ys _zs)
 
 collectTCvSubst :: [Ct] -> TCvSubst
 collectTCvSubst
@@ -97,12 +97,17 @@ data MapType
   | FromListTy ((Kind, Kind), M.Map OrdType Type)
   | TypeTy Type
 
-reifyCt :: PluginEnv -> (Ct, (Maybe MapType, Maybe MapType)) -> TcPluginM (Maybe Ct)
+reifyCt :: PluginEnv -> (Ct, (Maybe MapType, Maybe MapType)) -> TcPluginM (Maybe ((EvTerm, Ct), Ct))
 reifyCt env (ct, (mty1, mty2)) = do
-  let t1 = fmap (reifyMapType env) mty1
-      t2 = fmap (reifyMapType env) mty2
+  let mt1 = fmap (reifyMapType env) mty1
+      mt2 = fmap (reifyMapType env) mty2
 
-  sequence $ (\x y-> mkNonCanonical <$> newWanted (ctLoc ct) (mkPrimEqPred x y)) <$> t1 <*> t2
+      k t1 t2 = do
+        w <- newWanted (ctLoc ct) (mkPrimEqPred t1 t2)
+        let wct = mkNonCanonical w
+        pure ((evByFiat "ghc-typelits-containers" (ctPred ct) t1, ct), wct)
+
+  sequence $ k <$> mt1 <*> mt2
 
 reifyMapType :: PluginEnv -> MapType -> Type
 reifyMapType env@PluginEnv{..}
