@@ -25,12 +25,14 @@ testLookupFromList
 testLookupFromList
   = id
 
+{-
 testLookupFromEmptyList
   :: Proxy (Lookup "A" (FromList '[]))
   -> Proxy 'Nothing
 
 testLookupFromEmptyList
   = id
+  -}
 
 main :: IO ()
 main
