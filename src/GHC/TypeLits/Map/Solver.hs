@@ -147,7 +147,7 @@ reduce ty
       LookupTy (TypeTy kTy) (FromListTy ((_kKind, vKind), m)) ->
         case M.lookup (OrdType kTy) m of
           Nothing ->
-            Just $ TypeTy $ mkTyConApp promotedNilDataCon [vKind]
+            Just $ TypeTy $ mkTyConApp promotedNothingDataCon [vKind]
           Just vTy ->
             Just $ TypeTy $ mkTyConApp promotedJustDataCon [vKind, vTy]
       _ ->
