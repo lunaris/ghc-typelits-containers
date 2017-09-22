@@ -11,15 +11,24 @@ module Main where
 import Data.Proxy
 import GHC.TypeLits.Map
 
-{-
 testLookupFromListEquality
-  :: (m ~ FromList '[ '("A", 1), '("B", 2)])
-  => Proxy (Lookup "A" m)
+  :: (a ~ '("AE", 1),
+      m ~ FromList '[ a, '("BE", 2)])
+  => Proxy (Lookup "AE" m)
   -> Proxy ('Just 1)
 
 testLookupFromListEquality
   = id
-  -}
+
+type M
+  = FromList '[ '("AM", 1), '("BM", 2) ]
+
+testLookupFromListTySyn
+  :: Proxy (Lookup "AM" M)
+  -> Proxy ('Just 1)
+
+testLookupFromListTySyn
+  = id
 
 testLookupFromList
   :: Proxy (Lookup "A1" (FromList

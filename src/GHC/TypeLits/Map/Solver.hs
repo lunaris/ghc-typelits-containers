@@ -72,7 +72,9 @@ pluginSolve _ _gs [] []
   = pure (TcPluginOk [] [])
 pluginSolve env gs ds ws = do
   tcPluginTrace "pluginSolve: " $ ppr (gs, ds, ws)
-  let subst = collectTCvSubst (gs ++ ds)
+  zgs <- traverse zonkCt gs
+  tcPluginTrace "MAPTRACE ZONKED: " $ ppr zgs
+  let subst = collectTCvSubst (zgs ++ ds)
   tcPluginTrace "MAPTRACE SUBST: " $ ppr subst
   pluginWs <- catMaybes <$> traverse (toMapTypes env subst) ws
   let _xs = map (second (reduce *** reduce)) pluginWs
