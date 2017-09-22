@@ -157,19 +157,23 @@ toMapTypes
   :: PluginEnv
   -> TCvSubst
   -> Ct
-  -> TcPluginM (Maybe (Ct, (MapType,MapType)))
+  -> TcPluginM (Maybe (Ct, (MapType, MapType)))
 
 toMapTypes env subst ct
   = case classifyPredType (ctEvPred (ctEvidence ct)) of
       EqPred NomEq t1 t2 -> do
-        mc1 <- toMapType env (substTy subst t1)
-        mc2 <- toMapType env (substTy subst t2)
-        tcPluginTrace "MAPTRACE MAPTRACE: " $ ppr (mc1, mc2)
-        pure (fmap (ct, ) $ (,) <$> mc1 <*> mc2)
+        mt1 <- toMapType env (substTy subst t1)
+        mt2 <- toMapType env (substTy subst t2)
+        tcPluginTrace "MAPTRACE MAPTRACE: " $ ppr (mt1, mt2)
+        pure $ case (mt1, mt2) of
+          (TypeTy _, TypeTy _) ->
+            Nothing
+          mts ->
+            Just (ct, mts)
       _ ->
         pure Nothing
 
-toMapType :: PluginEnv -> Type -> TcPluginM (Maybe MapType)
+toMapType :: PluginEnv -> Type -> TcPluginM MapType
 toMapType env@PluginEnv{..}
   = go
   where
@@ -179,19 +183,19 @@ toMapType env@PluginEnv{..}
             | tyCon == _peFromListTyCon -> do
                 as <- toMap env asTy
                 tcPluginTrace "simplify: FromList: " $ ppr (tyCon, as)
-                pure (FromListTy <$> as)
+                pure (maybe (TypeTy ty) FromListTy as)
           TyConApp tyCon [_kKind, _vKind, kTy, mTy]
             | tyCon == _peLookupTyCon -> do
                 tcPluginTrace "simplify: Lookup: " $ ppr (tyCon, kTy, mTy)
                 kMTy <- go kTy
                 mMTy <- go mTy
-                pure (LookupTy <$> kMTy <*> mMTy)
+                pure (LookupTy kMTy mMTy)
           TyConApp tyCon tys
             | otherwise -> do
                 tcPluginTrace "simplify: SOME TYCON: " $ ppr (tyCon, tyConName tyCon, tys)
-                pure $ Just $ TypeTy ty
+                pure $ TypeTy ty
           _ ->
-            pure $ Just $ TypeTy ty
+            pure $ TypeTy ty
 
 toMap :: PluginEnv -> Type -> TcPluginM (Maybe ((Kind, Kind), M.Map OrdType Type))
 toMap PluginEnv{..}
