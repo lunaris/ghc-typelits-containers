@@ -8,11 +8,11 @@ import           GHC.TypeLits.Map.Solver.Env
 import qualified GHC.TypeLits.Map.Solver.GHC        as GHC
 import qualified GHC.TypeLits.Map.Solver.Meta       as Meta
 import           GHC.TypeLits.Map.Solver.Operations
+import           GHC.TypeLits.Map.Solver.Reduce
 
-import           Control.Arrow                      ((***), second)
+
 import qualified Control.Monad.Trans                as Trans
-import qualified Data.Map.Strict                    as M
-import           Data.Maybe                         (catMaybes)
+import           Data.Maybe                         (catMaybes, mapMaybe)
 
 plugin :: GHC.Plugin
 plugin
@@ -65,29 +65,8 @@ pluginSolve env gs ds ws = runPluginM env $ do
   let sub = GHC.collectEqCtSubsts (zgs ++ ds)
   pluginTrace "pluginSolve: Collected substitution" sub
   ops <- catMaybes <$> traverse (eqPredMapOps sub) ws
-  let reducedOps = map (second (reduceOp *** reduceOp)) ops
+  let reducedOps = mapMaybe reduceOps ops
   pluginTrace "pluginSolve: Reduced operations" reducedOps
   (solved, newWs) <- unzip <$> traverse solvedOpsEqPred reducedOps
   pluginTrace "pluginSolve: Rebuilt solved predicates" solved
   pure (GHC.TcPluginOk solved newWs)
-
-reduceOp :: MapOp -> MapOp
-reduceOp op
-  = case op of
-      LookupOp (TypeOp kt) (FromListOp ((_kk, vk), m)) ->
-        case M.lookup (OrdType kt) m of
-          Nothing ->
-            TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
-          Just vt ->
-            TypeOp $ GHC.mkTyConApp GHC.promotedJustDataCon [vk, vt]
-      LookupAllOp (_kk1, ksl) (FromListOp ((_kk2, vk), m)) ->
-        case traverse (\kt -> M.lookup (OrdType kt) m) ksl of
-          Nothing ->
-            TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
-          Just vts ->
-            TypeOp $ GHC.mkTyConApp GHC.promotedJustDataCon
-              [ GHC.mkTyConApp GHC.listTyCon [vk]
-              , GHC.mkPromotedListTy vk vts
-              ]
-      _ ->
-        op

@@ -67,10 +67,15 @@ mapOpToType
             kt <- mapOpToType kop
             mt <- mapOpToType mop
             pure (GHC.mkTyConApp _peLookupTyCon [kt, mt])
-          LookupAllOp _ksl _mop -> do
+          LookupAllOp (_kk, _kts) _mop -> do
             error "mapOpToType: LookupAllOp"
-          FromListOp _m -> do
-            error "mapOpToType: FromListOp"
+          FromListOp ((kk, vk), m) -> do
+            pluginTrace "mapOpToType: FromList" (kk, vk, m)
+            let as     = M.assocs m
+                ppair  = GHC.promotedTupleDataCon GHC.Boxed 2
+                mkPair = \(OrdType kt, vt) -> GHC.mkTyConApp ppair [kk, vk, kt, vt]
+                ast    = GHC.mkPromotedListTy (GHC.mkTyConApp ppair [kk, vk]) (mkPair <$> as)
+            pure (GHC.mkTyConApp _peFromListTyCon [kk, vk, ast])
           TypeOp ty ->
             pure ty
 

@@ -22,14 +22,31 @@ testHasKey
   = ()
 
 {-
-testNested
+testNested1
   :: (m ~ FromList '[ '("A1", "A1")])
   => Proxy (FromList '[ '("A1", 1) ])
   -> Proxy (FromList '[ '(Lookup "A1" m, 1) ])
 
-testNested
+testNested1
   = id
   -}
+
+{-
+testNested2
+  :: (m ~ FromList '[ '("A1", "A1")])
+  => Proxy (FromList '[ '("A1", 1) ])
+  -> Proxy (FromList '[ '("A1", Lookup "A1" m) ])
+
+testNested2
+  = id
+  -}
+
+testInert
+  :: Proxy (FromList '[ '("A1", 1) ])
+  -> Proxy (FromList '[ '("A1", 1) ])
+
+testInert
+  = id
 
 testLookupAllFromList
   :: Proxy (LookupAll '["A1", "A2", "A3"]
