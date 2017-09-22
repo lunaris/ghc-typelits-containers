@@ -21,6 +21,7 @@ testHasKey
 testHasKey
   = ()
 
+{-
 testNested
   :: (m ~ FromList '[ '("A1", "A1")])
   => Proxy (FromList '[ '("A1", 1) ])
@@ -28,6 +29,7 @@ testNested
 
 testNested
   = id
+  -}
 
 testLookupAllFromList
   :: Proxy (LookupAll '["A1", "A2", "A3"]
