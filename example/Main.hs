@@ -1,5 +1,7 @@
+{-# LANGUAGE AllowAmbiguousTypes  #-}
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE GADTs                #-}
+{-# LANGUAGE PolyKinds            #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -9,7 +11,31 @@
 module Main where
 
 import Data.Proxy
+import GHC.TypeLits
 import GHC.TypeLits.Map
+
+testHasKey
+  :: HasKey m k v
+  => ()
+
+testHasKey
+  = ()
+
+testNested
+  :: (m ~ FromList '[ '("A1", "A1")])
+  => Proxy (FromList '[ '("A1", 1) ])
+  -> Proxy (FromList '[ '(Lookup "A1" m, 1) ])
+
+testNested
+  = id
+
+testLookupAllFromList
+  :: Proxy (LookupAll '["A1", "A2", "A3"]
+      (FromList '[ '("A1", 1), '("A2", 2), '("A3", 3), '("A4", 4)]))
+  -> Proxy ('Just '[1, 2, 3])
+
+testLookupAllFromList
+  = id
 
 testLookupFromListEquality
   :: (a ~ '("AE", 1),
@@ -41,8 +67,8 @@ testLookupFromList
   = id
 
 testLookupFromEmptyList
-  :: Proxy (Lookup "A" (FromList '[]))
-  -> Proxy 'Nothing
+  :: Proxy (Lookup "A" (FromList ('[] :: [(Symbol, Nat)])))
+  -> Proxy ('Nothing :: Maybe Nat)
 
 testLookupFromEmptyList
   = id

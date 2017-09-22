@@ -9,7 +9,6 @@ module GHC.TypeLits.Map.Solver
 
 --import Control.Monad.Reader
 import Control.Arrow ((***), second)
-import Data.IORef
 import qualified Data.Map.Strict as M
 import Data.Maybe
 --import DataCon
@@ -39,10 +38,10 @@ plugin'
 
 data PluginEnv
   = PluginEnv
-      { _peMaps          :: IORef (M.Map TyVar (M.Map TyCon TyCon))
-      , _peMapTyCon      :: TyCon
-      , _peFromListTyCon :: TyCon
-      , _peLookupTyCon   :: TyCon
+      { _peMapTyCon       :: TyCon
+      , _peFromListTyCon  :: TyCon
+      , _peLookupTyCon    :: TyCon
+      , _peLookupAllTyCon :: TyCon
       }
 
 pluginInit :: TcPluginM PluginEnv
@@ -57,14 +56,13 @@ pluginInit = do
   mapTyCon <- lookupMapTyCon "Map"
   fromListTyCon <- lookupMapTyCon "FromList"
   lkTyCon <- lookupMapTyCon "Lookup"
-
-  maps <- tcPluginIO $ newIORef mempty
+  lookupAllTyCon <- lookupMapTyCon "LookupAll"
 
   pure PluginEnv
-    { _peMaps          = maps
-    , _peMapTyCon      = mapTyCon
-    , _peFromListTyCon = fromListTyCon
-    , _peLookupTyCon   = lkTyCon
+    { _peMapTyCon       = mapTyCon
+    , _peFromListTyCon  = fromListTyCon
+    , _peLookupTyCon    = lkTyCon
+    , _peLookupAllTyCon = lookupAllTyCon
     }
 
 pluginSolve :: PluginEnv -> [Ct] -> [Ct] -> [Ct] -> TcPluginM TcPluginResult
@@ -96,6 +94,7 @@ collectTCvSubst
 
 data MapType
   = LookupTy MapType MapType
+  | LookupAllTy (Kind, [Type]) MapType
   | FromListTy ((Kind, Kind), M.Map OrdType Type)
   | TypeTy Type
 
@@ -116,6 +115,8 @@ reifyMapType env@PluginEnv{..}
   = \case
       LookupTy kMTy mMTy ->
         mkTyConApp _peLookupTyCon [reifyMapType env kMTy, reifyMapType env mMTy]
+      LookupAllTy _ksMTy _mMTy ->
+        error "reifyMapType: LookupAllTy"
       FromListTy _m ->
         error "reifyMapType: FromListTy"
       TypeTy ty ->
@@ -138,6 +139,8 @@ instance Outputable MapType where
     = parens . \case
         LookupTy kMTy mMTy ->
           text "LookupTy" <+> ppr kMTy <+> ppr mMTy
+        LookupAllTy ksMTy mMTy ->
+          text "LookupAllTy" <+> ppr ksMTy <+> ppr mMTy
         FromListTy mMTy ->
           text "FromListTy" <+> ppr mMTy
         TypeTy ty ->
@@ -152,6 +155,17 @@ reduce ty
             Just $ TypeTy $ mkTyConApp promotedNothingDataCon [vKind]
           Just vTy ->
             Just $ TypeTy $ mkTyConApp promotedJustDataCon [vKind, vTy]
+      LookupAllTy (_kKind1, ksTys) (FromListTy ((_kKind2, vKind), m)) ->
+        case traverse (\kTy -> M.lookup (OrdType kTy) m) ksTys of
+          Nothing ->
+            Just $ TypeTy $ mkTyConApp promotedNothingDataCon [vKind]
+          Just vTys ->
+            Just $ TypeTy $ mkTyConApp promotedJustDataCon
+              [ mkTyConApp listTyCon [vKind]
+              , foldr (\a as -> mkTyConApp promotedConsDataCon [vKind, a, as])
+                  (mkTyConApp promotedNilDataCon [vKind]) vTys
+
+              ]
       _ ->
         Just ty
 
@@ -192,6 +206,12 @@ toMapType env@PluginEnv{..}
                 kMTy <- go kTy
                 mMTy <- go mTy
                 pure (LookupTy kMTy mMTy)
+          TyConApp tyCon [_ksKind, _vKind, ksTy, mTy]
+            | tyCon == _peLookupAllTyCon -> do
+                tcPluginTrace "simplify: LookupAll: " $ ppr (tyCon, ksTy, mTy)
+                ksMTy <- toList ksTy
+                mMTy <- go mTy
+                pure (maybe (TypeTy ty) (\x -> LookupAllTy x mMTy) ksMTy)
           TyConApp tyCon tys
             | otherwise -> do
                 tcPluginTrace "simplify: SOME TYCON: " $ ppr (tyCon, tyConName tyCon, tys)
@@ -207,7 +227,6 @@ toMap PluginEnv{..}
       = case ty of
           TyConApp tyCon1 [TyConApp tyCon2 [kKind, vKind]]
             | tyCon1 == promotedNilDataCon -> do
-              --tyCon2 == promotedTupleDataCon Boxed 2 -> do
                 tcPluginTrace "toMap: NIL " $ ppr (tyCon2, kKind, vKind)
                 pure $ Just ((kKind, vKind), [])
           TyConApp tyCon1 [_aKind, TyConApp tyCon2 [_kKind, _vKind, kTy, vTy], asTy]
@@ -216,5 +235,23 @@ toMap PluginEnv{..}
                 tcPluginTrace "toMap: CONS " $ ppr (kTy, vTy, asTy)
                 as <- go asTy
                 pure $ (fmap ((:) (OrdType kTy, vTy)) <$> as)
+          _ ->
+            pure Nothing
+
+toList :: Type -> TcPluginM (Maybe (Kind, [Type]))
+toList
+  = go
+  where
+    go ty
+      = case ty of
+          TyConApp tyCon [aKind]
+            | tyCon == promotedNilDataCon -> do
+                tcPluginTrace "toList: NIL " $ ppr (tyCon, aKind)
+                pure $ Just (aKind, [])
+          TyConApp tyCon [_aKind, aTy, asTy]
+            | tyCon == promotedConsDataCon -> do
+                tcPluginTrace "toList: CONS " $ ppr (aTy, asTy)
+                as <- go asTy
+                pure $ (fmap (aTy :) <$> as)
           _ ->
             pure Nothing
