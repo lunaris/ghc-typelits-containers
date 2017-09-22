@@ -45,17 +45,16 @@ instance Ord OrdType where
     = Coerce.coerce GHC.cmpType
 
 solvedOpsEqPred
-  :: (GHC.Ct, (Maybe MapOp, Maybe MapOp))
-  -> PluginM (Maybe ((GHC.EvTerm, GHC.Ct), GHC.Ct))
+  :: (GHC.Ct, (MapOp, MapOp))
+  -> PluginM ((GHC.EvTerm, GHC.Ct), GHC.Ct)
 
-solvedOpsEqPred (ct, (maybeOp1, maybeOp2)) = do
-  maybeT1 <- traverse mapOpToType maybeOp1
-  maybeT2 <- traverse mapOpToType maybeOp2
-  let k t1 t2 = Trans.lift $ do
-        w <- GHC.newWanted (GHC.ctLoc ct) (GHC.mkPrimEqPred t1 t2)
-        let wct = GHC.mkNonCanonical w
-        pure ((GHC.evByFiat Meta.packageName (GHC.ctPred ct) t1, ct), wct)
-  sequence (k <$> maybeT1 <*> maybeT2)
+solvedOpsEqPred (ct, (op1, op2)) = do
+  t1 <- mapOpToType op1
+  t2 <- mapOpToType op2
+  w <- Trans.lift $ GHC.newWanted (GHC.ctLoc ct) (GHC.mkPrimEqPred t1 t2)
+  let wct    = GHC.mkNonCanonical w
+      result = ((GHC.evByFiat Meta.packageName (GHC.ctPred ct) t1, ct), wct)
+  pure result
 
 mapOpToType :: MapOp -> PluginM GHC.Type
 mapOpToType

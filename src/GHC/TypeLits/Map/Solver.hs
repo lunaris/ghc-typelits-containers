@@ -67,27 +67,27 @@ pluginSolve env gs ds ws = runPluginM env $ do
   ops <- catMaybes <$> traverse (eqPredMapOps sub) ws
   let reducedOps = map (second (reduceOp *** reduceOp)) ops
   pluginTrace "pluginSolve: Reduced operations" reducedOps
-  (solved, newWs) <- unzip . catMaybes <$> traverse solvedOpsEqPred reducedOps
+  (solved, newWs) <- unzip <$> traverse solvedOpsEqPred reducedOps
   pluginTrace "pluginSolve: Rebuilt solved predicates" solved
   pure (GHC.TcPluginOk solved newWs)
 
-reduceOp :: MapOp -> Maybe MapOp
+reduceOp :: MapOp -> MapOp
 reduceOp op
   = case op of
       LookupOp (TypeOp kt) (FromListOp ((_kk, vk), m)) ->
         case M.lookup (OrdType kt) m of
           Nothing ->
-            Just $ TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
+            TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
           Just vt ->
-            Just $ TypeOp $ GHC.mkTyConApp GHC.promotedJustDataCon [vk, vt]
+            TypeOp $ GHC.mkTyConApp GHC.promotedJustDataCon [vk, vt]
       LookupAllOp (_kk1, ksl) (FromListOp ((_kk2, vk), m)) ->
         case traverse (\kt -> M.lookup (OrdType kt) m) ksl of
           Nothing ->
-            Just $ TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
+            TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
           Just vts ->
-            Just $ TypeOp $ GHC.mkTyConApp GHC.promotedJustDataCon
+            TypeOp $ GHC.mkTyConApp GHC.promotedJustDataCon
               [ GHC.mkTyConApp GHC.listTyCon [vk]
               , GHC.mkPromotedListTy vk vts
               ]
       _ ->
-        Just op
+        op
