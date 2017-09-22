@@ -68,5 +68,8 @@ reduceOp
                       ]
               _ ->
                 pure (LookupAllOp (_kk1, ksl) mop')
+          CastOp op' crc -> do
+            op'' <- go op'
+            pure (CastOp op'' crc)
           _ -> do
             pure op

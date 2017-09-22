@@ -18,6 +18,7 @@ data MapOp
   = LookupOp MapOp MapOp
   | LookupAllOp (GHC.Kind, [GHC.Type]) MapOp
   | FromListOp ((GHC.Kind, GHC.Kind), M.Map OrdType GHC.Type)
+  | CastOp MapOp GHC.KindCoercion
   | TypeOp GHC.Type
 
 instance GHC.Outputable MapOp where
@@ -29,6 +30,8 @@ instance GHC.Outputable MapOp where
           GHC.text "LookupAllOp" <+> GHC.ppr ks <+> GHC.ppr mop
         FromListOp as ->
           GHC.text "FromListOp" <+> GHC.ppr as
+        CastOp op crc ->
+          GHC.text "CastOp" <+> GHC.ppr op <+> GHC.ppr crc
         TypeOp ty ->
           GHC.text "TypeOp" <+> GHC.ppr ty
 
@@ -76,6 +79,10 @@ mapOpToType
                 mkPair = \(OrdType kt, vt) -> GHC.mkTyConApp ppair [kk, vk, kt, vt]
                 ast    = GHC.mkPromotedListTy (GHC.mkTyConApp ppair [kk, vk]) (mkPair <$> as)
             pure (GHC.mkTyConApp _peFromListTyCon [kk, vk, ast])
+          CastOp op' crc -> do
+            pluginTrace "mapOpToType: CastOp" (op', crc)
+            t <- mapOpToType op'
+            pure (GHC.mkCastTy t crc)
           TypeOp ty ->
             pure ty
 
@@ -88,17 +95,28 @@ eqPredMapOps sub ct
   = case GHC.classifyPredType (GHC.ctEvPred (GHC.ctEvidence ct)) of
       GHC.EqPred GHC.NomEq t1 t2 -> do
         pluginTrace "eqPredMapOps: EqPred/pre-substitution" (t1, t2)
-        let applySub = GHC.substTy sub
-        op1 <- typeToMapOp (applySub t1)
-        op2 <- typeToMapOp (applySub t2)
+        let simplify = GHC.expandTypeSynonyms . GHC.substTy sub
+        op1 <- typeToMapOp (simplify t1)
+        op2 <- typeToMapOp (simplify t2)
         pluginTrace "eqPredMapOps: EqPred/post-substitution" (op1, op2)
-        pure $ case (op1, op2) of
+        pure $ case (peelOffCasts op1, peelOffCasts op2) of
           (TypeOp _, TypeOp _) ->
             Nothing
           ops ->
             Just (ct, ops)
       _ ->
         pure Nothing
+
+peelOffCasts :: MapOp -> MapOp
+peelOffCasts
+  = go
+  where
+    go op
+      = case op of
+          CastOp op' _ ->
+            go op'
+          _ ->
+            op
 
 typeToMapOp :: GHC.Type -> PluginM MapOp
 typeToMapOp
@@ -124,6 +142,10 @@ typeToMapOp
                 let mksl = GHC.tryExtractPromotedList kst
                 mop <- go mt
                 pure (maybe (TypeOp ty) (\ksl -> LookupAllOp ksl mop) mksl)
+          GHC.CastTy t crc -> do
+            pluginTrace "typeToMapOp: Coercion" (t, crc)
+            op <- go t
+            pure (CastOp op crc)
           _ ->
             pure $ TypeOp ty
 
