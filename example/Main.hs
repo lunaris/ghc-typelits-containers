@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes  #-}
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE PolyKinds            #-}
 {-# LANGUAGE TypeFamilies         #-}
@@ -10,10 +11,25 @@
 
 module Main where
 
-import Data.Proxy
-import GHC.TypeLits
+--import Data.Proxy
+--import GHC.TypeLits
 import GHC.TypeLits.Map
 
+type TM
+  = FromList
+      '[ '("AInt", Int)
+       , '("ABool", Bool)
+       , '("AChar", Char)
+       ]
+
+testAllValues
+  :: AllValues Show m
+  => [String]
+
+testAllValues
+  = []
+
+{-
 testHasKey
   :: HasKey m k v
   => ()
@@ -5125,6 +5141,7 @@ testFamilyWithLookup
 
 testFamilyWithLookup
   = id
+  -}
 
 main :: IO ()
 main
