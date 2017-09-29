@@ -32,7 +32,7 @@ instance AllF c f '[] where
     = []
 
 instance (Typeable (f a),
-          c a,
+          c (f a),
           AllF c f as)
 
       =>  AllF c f (a ': as) where
@@ -41,16 +41,16 @@ instance (Typeable (f a),
     = let tr = typeRep @(f a)
       in  (SomeTypeRep tr, SomeDictF @_ @_ @c @f tr) : dictsAssocsF @_ @_ @c @f @as
 
+data SomeDictF :: (k2 -> Constraint) -> (k1 -> k2) -> Type where
+  SomeDictF :: c (f a) => TypeRep (f a) -> SomeDictF c f
+
 dictsMapF
   :: forall c f as.
      AllF c f as
   => M.Map SomeTypeRep (SomeDictF c f)
 
 dictsMapF
-  = M.fromList (dictsAssocsF @_ @c @as)
-
-data SomeDictF :: (k2 -> Constraint) -> (k1 -> k2) -> Type where
-  SomeDictF :: c (f a) => TypeRep (f a) -> SomeDictF c f
+  = M.fromList (dictsAssocsF @_ @_ @c @f @as)
 
 newtype Bag (f :: Type -> Type) (m :: TM.Map Symbol Type)
   = Bag { _bagMap :: M.Map Tx.Text Dynamic }
