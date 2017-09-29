@@ -54,7 +54,7 @@ instance Eq OrdType where
 
 instance Ord OrdType where
   compare
-    = Coerce.coerce GHC.cmpType
+    = Coerce.coerce GHC.nonDetCmpType
 
 solvedOpsEqPred
   :: (GHC.Ct, (MapOp, MapOp))

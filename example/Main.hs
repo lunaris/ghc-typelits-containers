@@ -1,19 +1,26 @@
-{-# LANGUAGE AllowAmbiguousTypes  #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE PolyKinds            #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Map.Solver #-}
 
 module Main where
 
+import qualified Bag
+
+import Data.Functor.Identity
 import Data.Proxy
---import GHC.TypeLits
+import GHC.TypeLits
 import GHC.TypeLits.Map
+
+b1 :: Bag.Bag Identity TM
+b1
+  = mempty
 
 type TM
   = FromList
@@ -21,6 +28,13 @@ type TM
        , '("ABool", Bool)
        , '("AChar", Char)
        ]
+
+testNonSymbolKeys
+  :: Proxy (Lookup Int (FromList '[ '(Int, 1), '(Bool, 2)]))
+  -> Proxy ('Just 1)
+
+testNonSymbolKeys
+  = id
 
 testKeys
   :: Proxy (Keys (FromList '[ '("A", 1), '("B", 2)]))
@@ -37,14 +51,14 @@ testElems
   = id
 
 testAssocs
-  :: (m ~ '[ '("A", 1), '("B", 2)])
+  :: (m ~ AS,
+      m1 ~ AS)
   => Proxy (Assocs (FromList m))
-  -> Proxy m
+  -> Proxy (Assocs (FromList m1))
 
 testAssocs
   = id
 
-{-
 testHasKey
   :: HasKey m k v
   => ()
@@ -5156,7 +5170,6 @@ testFamilyWithLookup
 
 testFamilyWithLookup
   = id
-  -}
 
 main :: IO ()
 main

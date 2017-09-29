@@ -9,7 +9,8 @@ module GHC.TypeLits.Map.Solver.GHC
 import Data.Maybe          (fromMaybe)
 import FastString          as Exports
 import GHC.TcPluginM.Extra as Exports (evByFiat, lookupModule, lookupName, tracePlugin)
-import GhcPlugins          as Exports hiding (extendTvSubstList, isInScope, substCo, substTy)
+import GhcPlugins          as Exports hiding (extendTvSubst, extendTvSubstList,
+                                              isInScope, substCo, substTy)
 import TcEvidence          as Exports
 import TcPluginM           as Exports
 import TcRnTypes           as Exports
@@ -27,13 +28,6 @@ collectEqCtSubsts
             fromMaybe emptyTCvSubst (tcUnifyTy t1 t2)
           _ ->
             emptyTCvSubst
-
-mkPromotedListTy :: Kind -> [Type] -> Type
-mkPromotedListTy k
-  = foldr cons nil
-  where
-    cons t ts = mkTyConApp promotedConsDataCon [k, t, ts]
-    nil       = mkTyConApp promotedNilDataCon [k]
 
 tryExtractPromotedList :: Type -> Maybe (Kind, [Type])
 tryExtractPromotedList

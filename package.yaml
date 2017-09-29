@@ -8,6 +8,7 @@ ghc-options:
   - -Werror
 
 dependencies:
+  - aeson
   - base
   - containers
   - ghc
@@ -25,6 +26,7 @@ library:
 
 executables:
   example:
-    main: example/Main.hs
+    main: Main.hs
+    source-dirs: example
     dependencies:
       - ghc-typelits-containers
