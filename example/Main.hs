@@ -13,10 +13,11 @@ module Main where
 
 import qualified Bag
 
-import Data.Functor.Identity
-import Data.Proxy
-import GHC.TypeLits
-import GHC.TypeLits.Map
+import qualified Data.Aeson            as Ae
+import           Data.Functor.Identity
+import           Data.Proxy
+import           GHC.TypeLits
+import           GHC.TypeLits.Map
 
 b1 :: Bag.Bag Identity TM
 b1
@@ -5172,5 +5173,5 @@ testFamilyWithLookup
   = id
 
 main :: IO ()
-main
-  = pure ()
+main = do
+  print $ Bag.bagToJSON b1
