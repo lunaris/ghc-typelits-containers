@@ -11,7 +11,7 @@
 
 module Main where
 
---import Data.Proxy
+import Data.Proxy
 --import GHC.TypeLits
 import GHC.TypeLits.Map
 
@@ -22,12 +22,27 @@ type TM
        , '("AChar", Char)
        ]
 
-testAllValues
-  :: AllValues Show m
-  => [String]
+testKeys
+  :: Proxy (Keys (FromList '[ '("A", 1), '("B", 2)]))
+  -> Proxy '["A", "B"]
 
-testAllValues
-  = []
+testKeys
+  = id
+
+testElems
+  :: Proxy (Elems (FromList '[ '("A", 1), '("B", 2)]))
+  -> Proxy '[1, 2]
+
+testElems
+  = id
+
+testAssocs
+  :: (m ~ '[ '("A", 1), '("B", 2)])
+  => Proxy (Assocs (FromList m))
+  -> Proxy m
+
+testAssocs
+  = id
 
 {-
 testHasKey

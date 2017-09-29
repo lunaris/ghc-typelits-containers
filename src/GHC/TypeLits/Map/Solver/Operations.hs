@@ -18,6 +18,9 @@ data MapOp
   = LookupOp MapOp MapOp
   | LookupAllOp (GHC.Kind, [GHC.Type]) MapOp
   | FromListOp ((GHC.Kind, GHC.Kind), M.Map OrdType GHC.Type)
+  | KeysOp MapOp
+  | ElemsOp MapOp
+  | AssocsOp MapOp
   | CastOp MapOp GHC.KindCoercion
   | TypeOp GHC.Type
 
@@ -30,6 +33,12 @@ instance GHC.Outputable MapOp where
           GHC.text "LookupAllOp" <+> GHC.ppr ks <+> GHC.ppr mop
         FromListOp as ->
           GHC.text "FromListOp" <+> GHC.ppr as
+        KeysOp mop ->
+          GHC.text "KeysOp" <+> GHC.ppr mop
+        ElemsOp mop ->
+          GHC.text "ElemsOp" <+> GHC.ppr mop
+        AssocsOp mop ->
+          GHC.text "AssocsOp" <+> GHC.ppr mop
         CastOp op crc ->
           GHC.text "CastOp" <+> GHC.ppr op <+> GHC.ppr crc
         TypeOp ty ->
@@ -79,6 +88,18 @@ mapOpToType
                 mkPair = \(OrdType kt, vt) -> GHC.mkTyConApp ppair [kk, vk, kt, vt]
                 ast    = GHC.mkPromotedListTy (GHC.mkTyConApp ppair [kk, vk]) (mkPair <$> as)
             pure (GHC.mkTyConApp _peFromListTyCon [kk, vk, ast])
+          KeysOp mop -> do
+            pluginTrace "mapOpToType: KeysOp" mop
+            mt <- mapOpToType mop
+            pure (GHC.mkTyConApp _peKeysTyCon [mt])
+          ElemsOp mop -> do
+            pluginTrace "mapOpToType: ElemsOp" mop
+            mt <- mapOpToType mop
+            pure (GHC.mkTyConApp _peElemsTyCon [mt])
+          AssocsOp mop -> do
+            pluginTrace "mapOpToType: AssocsOp" mop
+            mt <- mapOpToType mop
+            pure (GHC.mkTyConApp _peAssocsTyCon [mt])
           CastOp op' crc -> do
             pluginTrace "mapOpToType: CastOp" (op', crc)
             t <- mapOpToType op'
@@ -130,6 +151,21 @@ typeToMapOp
                 pluginTrace "typeToMapOp: FromList" ast
                 let mm = tryExtractMap ast
                 pure (maybe (TypeOp ty) FromListOp mm)
+          GHC.TyConApp tc [_kk, _vk, mt]
+            | tc == _peKeysTyCon -> do
+                pluginTrace "typeToMapOp: Keys" mt
+                mop <- go mt
+                pure (KeysOp mop)
+          GHC.TyConApp tc [_kk, _vk, mt]
+            | tc == _peElemsTyCon -> do
+                pluginTrace "typeToMapOp: Elems" mt
+                mop <- go mt
+                pure (ElemsOp mop)
+          GHC.TyConApp tc [_kk, _vk, mt]
+            | tc == _peAssocsTyCon -> do
+                pluginTrace "typeToMapOp: Assocs" mt
+                mop <- go mt
+                pure (AssocsOp mop)
           GHC.TyConApp tc [_kk, _vk, kt, mt]
             | tc == _peLookupTyCon -> do
                 pluginTrace "typeToMapOp: Lookup" (kt, mt)

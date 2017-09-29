@@ -7,6 +7,7 @@ import           GHC.TypeLits.Map.Solver.Operations
 
 import qualified Control.Monad.State.Strict         as St
 import qualified Data.Map.Strict                    as M
+import qualified Data.Coerce                        as Coerce
 import           Data.Maybe                         (fromMaybe)
 
 type ReduceM
@@ -46,7 +47,7 @@ reduceOp
             kop' <- go kop
             mop' <- go mop
             case (kop', mop') of
-              (TypeOp kt, FromListOp ((_kk, vk), m)) -> reduceBy $ do
+              (TypeOp kt, FromListOp ((_kk, vk), m)) -> reduceBy $
                 case M.lookup (OrdType kt) m of
                   Nothing ->
                     pure $ TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
@@ -57,7 +58,7 @@ reduceOp
           LookupAllOp (_kk1, ksl) mop -> do
             mop' <- go mop
             case mop' of
-              FromListOp ((_kk2, vk), m) -> reduceBy $ do
+              FromListOp ((_kk2, vk), m) -> reduceBy $
                 case traverse (\kt -> M.lookup (OrdType kt) m) ksl of
                   Nothing ->
                     pure $ TypeOp $ GHC.mkTyConApp GHC.promotedNothingDataCon [vk]
@@ -68,6 +69,32 @@ reduceOp
                       ]
               _ ->
                 pure (LookupAllOp (_kk1, ksl) mop')
+          KeysOp mop -> do
+            mop' <- go mop
+            case mop' of
+              FromListOp ((kk, _vk), m) -> reduceBy $
+                pure $ TypeOp $
+                  GHC.mkPromotedListTy kk (Coerce.coerce (M.keys m))
+              _ ->
+                pure (KeysOp mop')
+          ElemsOp mop -> do
+            mop' <- go mop
+            case mop' of
+              FromListOp ((_kk, vk), m) -> reduceBy $
+                pure $ TypeOp $
+                  GHC.mkPromotedListTy vk (M.elems m)
+              _ ->
+                pure (ElemsOp mop')
+          AssocsOp mop -> do
+            mop' <- go mop
+            case mop' of
+              FromListOp ((kk, vk), m) -> reduceBy $ do
+                pure $ TypeOp $
+                  GHC.mkPromotedListTy (GHC.mkBoxedTupleTy [kk, vk])
+                    (GHC.mkPromotedBoxed2TupleTy (kk, vk) <$>
+                      Coerce.coerce (M.assocs m))
+              _ ->
+                pure (KeysOp mop')
           CastOp op' crc -> do
             op'' <- go op'
             pure (CastOp op'' crc)

@@ -15,6 +15,9 @@ data PluginEnv
       , _peFromListTyCon  :: GHC.TyCon
       , _peLookupTyCon    :: GHC.TyCon
       , _peLookupAllTyCon :: GHC.TyCon
+      , _peKeysTyCon      :: GHC.TyCon
+      , _peElemsTyCon     :: GHC.TyCon
+      , _peAssocsTyCon    :: GHC.TyCon
       }
 
 runPluginM :: PluginEnv -> PluginM a -> GHC.TcPluginM a

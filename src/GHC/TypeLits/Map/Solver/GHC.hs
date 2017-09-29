@@ -49,3 +49,7 @@ tryExtractPromotedList
                 fmap (t :) <$> go ts
           _ ->
             Nothing
+
+mkPromotedBoxed2TupleTy :: (Kind, Kind) -> (Type, Type) -> Type
+mkPromotedBoxed2TupleTy (k1, k2) (t1, t2)
+  = mkTyConApp (promotedTupleDataCon Boxed 2) [k1, k2, t1, t2]

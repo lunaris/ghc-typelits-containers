@@ -41,12 +41,18 @@ pluginInit = do
   fromListTyCon <- lookupMapTyCon "FromList"
   lkTyCon <- lookupMapTyCon "Lookup"
   lookupAllTyCon <- lookupMapTyCon "LookupAll"
+  keysTyCon <- lookupMapTyCon "Keys"
+  elemsTyCon <- lookupMapTyCon "Elems"
+  assocsTyCon <- lookupMapTyCon "Assocs"
 
   pure PluginEnv
     { _peMapTyCon       = mapTyCon
     , _peFromListTyCon  = fromListTyCon
     , _peLookupTyCon    = lkTyCon
     , _peLookupAllTyCon = lookupAllTyCon
+    , _peKeysTyCon      = keysTyCon
+    , _peElemsTyCon     = elemsTyCon
+    , _peAssocsTyCon    = assocsTyCon
     }
 
 pluginSolve
