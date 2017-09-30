@@ -14,6 +14,18 @@ import qualified Control.Monad.Trans          as Trans
 import qualified Data.Coerce                  as Coerce
 import qualified Data.Map.Strict              as M
 
+data PredMapOps
+  = EqPredOps MapOp MapOp
+  | ClassPredOps GHC.Class [MapOp]
+
+instance GHC.Outputable PredMapOps where
+  ppr
+    = GHC.parens . \case
+        EqPredOps op1 op2 ->
+          GHC.text "EqPredOps" <+> GHC.ppr op1 <+> GHC.ppr op2
+        ClassPredOps cls ops ->
+          GHC.text "ClassPredOps" <+> GHC.ppr cls <+> GHC.ppr ops
+
 data MapOp
   = LookupOp MapOp MapOp
   | LookupAllOp (GHC.Kind, [GHC.Type]) MapOp
@@ -23,6 +35,16 @@ data MapOp
   | AssocsOp MapOp
   | CastOp MapOp GHC.KindCoercion
   | TypeOp GHC.Type
+
+isTypeOp :: MapOp -> Bool
+isTypeOp
+  = go
+  where
+    go
+      = \case
+          TypeOp _    -> True
+          CastOp op _ -> go op
+          _           -> False
 
 instance GHC.Outputable MapOp where
   ppr
@@ -56,17 +78,39 @@ instance Ord OrdType where
   compare
     = Coerce.coerce GHC.nonDetCmpType
 
-solvedOpsEqPred
-  :: (GHC.Ct, (MapOp, MapOp))
+solvedOpsPred
+  :: (GHC.Ct, PredMapOps)
   -> PluginM ((GHC.EvTerm, GHC.Ct), GHC.Ct)
 
-solvedOpsEqPred (ct, (op1, op2)) = do
-  t1 <- mapOpToType op1
-  t2 <- mapOpToType op2
-  w <- Trans.lift $ GHC.newWanted (GHC.ctLoc ct) (GHC.mkPrimEqPred t1 t2)
-  let wct    = GHC.mkNonCanonical w
-      result = ((GHC.evByFiat Meta.packageName (GHC.ctPred ct) t1, ct), wct)
-  pure result
+solvedOpsPred (ct, pmos)
+  = case pmos of
+      EqPredOps op1 op2 -> do
+        --  Solving an equality predicate is straightforward -- take each
+        --  operation (at least one of which should have been reduced), convert
+        --  it back to a type and demand (by creating a new "wanted") a new
+        --  equality constraint between those two types.
+        t1 <- mapOpToType op1
+        t2 <- mapOpToType op2
+        w <- Trans.lift $ GHC.newWanted (GHC.ctLoc ct) (GHC.mkPrimEqPred t1 t2)
+        let wct    = GHC.mkNonCanonical w
+            result = ((GHC.evByFiat Meta.packageName (GHC.ctPred ct) t1, ct), wct)
+        pure result
+      ClassPredOps cls ops -> do
+        --  Solving class predicates is a little fiddlier. Take all the
+        --  operations in the head (at least one of which should have been
+        --  reduced), convert them back to types and create a new class
+        --  predicate whose head references the new types. Then demand that
+        --  that constraint be solved providing evidence in the form of a
+        --  coercion that doing so solves the original.
+        ts <- traverse mapOpToType ops
+        let cp = GHC.mkClassPred cls ts
+        w <- Trans.lift $ GHC.newWanted (GHC.ctLoc ct) cp
+        let wct    = GHC.mkNonCanonical w
+            wtm    = GHC.ctEvTerm w
+            crc    = GHC.mkUnivCo (GHC.PluginProv Meta.packageName)
+                       GHC.Nominal cp (GHC.ctPred ct)
+            result = ((GHC.mkEvCast wtm crc, ct), wct)
+        pure result
 
 mapOpToType :: MapOp -> PluginM GHC.Type
 mapOpToType
@@ -107,37 +151,32 @@ mapOpToType
           TypeOp ty ->
             pure ty
 
-eqPredMapOps
+predMapOps
   :: GHC.TCvSubst
   -> GHC.Ct
-  -> PluginM (Maybe (GHC.Ct, (MapOp, MapOp)))
+  -> PluginM (Maybe (GHC.Ct, PredMapOps))
 
-eqPredMapOps sub ct
+predMapOps sub ct
   = case GHC.classifyPredType (GHC.ctEvPred (GHC.ctEvidence ct)) of
+      GHC.ClassPred cls ts -> do
+        pluginTrace "predMapOps: ClassPred/pre-substitution" (cls, ts)
+        ops <- traverse (typeToMapOp . simplify) ts
+        pluginTrace "predMapOps: ClassPred/post-substitution" (cls, ops)
+        pure $ if all isTypeOp ops
+          then Nothing
+          else Just (ct, ClassPredOps cls ops)
       GHC.EqPred GHC.NomEq t1 t2 -> do
-        pluginTrace "eqPredMapOps: EqPred/pre-substitution" (t1, t2)
-        let simplify = GHC.expandTypeSynonyms . GHC.substTy sub
+        pluginTrace "predMapOps: EqPred/pre-substitution" (t1, t2)
         op1 <- typeToMapOp (simplify t1)
         op2 <- typeToMapOp (simplify t2)
-        pluginTrace "eqPredMapOps: EqPred/post-substitution" (op1, op2)
-        pure $ case (peelOffCasts op1, peelOffCasts op2) of
-          (TypeOp _, TypeOp _) ->
-            Nothing
-          ops ->
-            Just (ct, ops)
+        pluginTrace "predMapOps: EqPred/post-substitution" (op1, op2)
+        pure $ if isTypeOp op1 && isTypeOp op2
+          then Nothing
+          else Just (ct, EqPredOps op1 op2)
       _ ->
         pure Nothing
-
-peelOffCasts :: MapOp -> MapOp
-peelOffCasts
-  = go
   where
-    go op
-      = case op of
-          CastOp op' _ ->
-            go op'
-          _ ->
-            op
+    simplify = GHC.expandTypeSynonyms . GHC.substTy sub
 
 typeToMapOp :: GHC.Type -> PluginM MapOp
 typeToMapOp

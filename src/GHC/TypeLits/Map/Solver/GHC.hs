@@ -6,6 +6,7 @@ module GHC.TypeLits.Map.Solver.GHC
   , module GHC.TypeLits.Map.Solver.GHC
   ) where
 
+import Class               as Exports
 import Data.Maybe          (fromMaybe)
 import FastString          as Exports
 import GHC.TcPluginM.Extra as Exports (evByFiat, lookupModule, lookupName, tracePlugin)

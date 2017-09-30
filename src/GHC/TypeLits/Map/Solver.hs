@@ -70,9 +70,9 @@ pluginSolve env gs ds ws = runPluginM env $ do
   pluginTrace "pluginSolve: Zonked givens" zgs
   let sub = GHC.collectEqCtSubsts (zgs ++ ds)
   pluginTrace "pluginSolve: Collected substitution" sub
-  ops <- catMaybes <$> traverse (eqPredMapOps sub) ws
-  let reducedOps = mapMaybe reduceOps ops
+  pmos <- catMaybes <$> traverse (predMapOps sub) ws
+  let reducedOps = mapMaybe reducePredOps pmos
   pluginTrace "pluginSolve: Reduced operations" reducedOps
-  (solved, newWs) <- unzip <$> traverse solvedOpsEqPred reducedOps
+  (solved, newWs) <- unzip <$> traverse solvedOpsPred reducedOps
   pluginTrace "pluginSolve: Rebuilt solved predicates" solved
   pure (GHC.TcPluginOk solved newWs)

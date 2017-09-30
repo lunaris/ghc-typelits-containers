@@ -8,7 +8,7 @@ import           GHC.TypeLits.Map.Solver.Operations
 import qualified Control.Monad.State.Strict         as St
 import qualified Data.Map.Strict                    as M
 import qualified Data.Coerce                        as Coerce
-import           Data.Maybe                         (fromMaybe)
+import           Data.Maybe
 
 type ReduceM
   = St.State ReductionResult
@@ -21,13 +21,22 @@ reduceBy :: ReduceM a -> ReduceM a
 reduceBy m
   = St.put Reduced *> m
 
-reduceOps :: (GHC.Ct, (MapOp, MapOp)) -> Maybe (GHC.Ct, (MapOp, MapOp))
-reduceOps (ct, (op1, op2))
-  = case (reduceOp op1, reduceOp op2) of
-      (Nothing, Nothing) ->
-        Nothing
-      (maybeOp1', maybeOp2') ->
-        Just (ct, (fromMaybe op1 maybeOp1', fromMaybe op2 maybeOp2'))
+reducePredOps :: (GHC.Ct, PredMapOps) -> Maybe (GHC.Ct, PredMapOps)
+reducePredOps (ct, pmos)
+  = case pmos of
+      EqPredOps op1 op2 ->
+        case (reduceOp op1, reduceOp op2) of
+          (Nothing, Nothing) ->
+            Nothing
+          (maybeOp1', maybeOp2') ->
+            Just (ct,
+              EqPredOps (fromMaybe op1 maybeOp1') (fromMaybe op2 maybeOp2'))
+      ClassPredOps cls ops ->
+        let maybeOp's = fmap reduceOp ops
+        in  if all isNothing maybeOp's
+              then Nothing
+              else Just (ct,
+                ClassPredOps cls (zipWith fromMaybe ops maybeOp's))
 
 reduceOp :: MapOp -> Maybe MapOp
 reduceOp
