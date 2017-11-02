@@ -18,7 +18,7 @@ import           Data.Proxy
 import           GHC.TypeLits
 import           GHC.TypeLits.Map
 
-b1 :: Bag.Bag Identity TM
+b1 :: Bag.Bag Identity '[] TM
 b1
   = mempty
 
@@ -10176,4 +10176,5 @@ testFamilyWithLookup
 
 main :: IO ()
 main = do
-  print $ Bag.bagToJSON b1
+  --print $ Bag.bagToJSON b1
+  pure ()
